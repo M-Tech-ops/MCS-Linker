@@ -3,14 +3,36 @@
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive 
 import os
-
+  # Put your actual Google Drive Folder ID here
+TARGET_FOLDER_ID = "170RmO3RtiPrtwo6P3EvOORcw7w7kNAUa" 
+    
+    # 1. This dictates exactly where the file lands on your computer
+local_destination = "./Remote_Files/level.dat"
+    
 def authenticate_drive():
     print("Authenticating with Google Drive...")
     gauth = GoogleAuth()
-    
+    gauth.LoadCredentialsFile("mycreds.txt")
     # This will open a web browser the first time to ask for your permission.
     # It creates a 'credentials.json' file so you don't have to log in every time.
-    gauth.LocalWebserverAuth() 
+    if gauth.credentials is None:
+        # If no saved credentials exist, log in via browser
+        print("No saved credentials found. Opening browser...")
+        gauth.GetFlow()
+        gauth.flow.params.update({'access_type': 'offline'})
+        gauth.flow.params.update({'approval_prompt':'force'})
+        gauth.LocalWebserverAuth()
+
+    elif gauth.access_token_expired:
+        # If credentials exist but expired, refresh them automatically
+        print("Credentials expired. Refreshing...")
+        gauth.Refresh()
+    else:
+        # If credentials are valid, authorize them
+        gauth.Authorize()
+    # 2. Save the credentials for next time
+    gauth.SaveCredentialsFile("mycreds.txt")
+    
     return GoogleDrive(gauth)
 def download_file_from_folder(drive, filename, folder_id, save_path):
     print(f"Searching for '{filename}' inside specific folder...")
@@ -56,20 +78,64 @@ def download_file_by_name(drive, filename, save_path):
     target_file.GetContentFile(save_path)
     print(">> Download Complete!\n")
     return True
+def upload_or_replace_file(drive, local_file_path, folder_id, filename=None):
+    """
+    Upload a local file to Google Drive folder, replacing if it exists
+    
+    Args:
+        drive: GoogleDrive object
+        local_file_path: Path to local file (e.g., "./Local_Files/level.dat")
+        folder_id: Google Drive folder ID where file should go
+        filename: Name for file on Drive (defaults to local filename)
+    """
+    
+    # Get filename if not provided
+    if not filename:
+        filename = os.path.basename(local_file_path)
+    
+    # Check if file exists locally
+    if not os.path.exists(local_file_path):
+        print(f"[!] Error: Local file '{local_file_path}' not found")
+        return False
+    
 
+    print(f"Searching for existing '{filename}' in Drive folder...")
+    
+    # Check if file already exists on Drive
+    query = f"title='{filename}' and '{folder_id}' in parents and trashed=false"
+    file_list = drive.ListFile({'q': query}).GetList()
+    
+    if file_list:
+        # File exists - delete old version
+       if len(file_list) > 0:
+        print(f"Found {len(file_list)} existing file(s). Deleting...")
+        for f in file_list:
+            f.Delete()
+            print(f"  Deleted: {f['id']}")
+    # Upload new file
+    print(f"Uploading new '{filename}' to Drive...")
+    gfile = drive.CreateFile({
+        'title': filename,
+        'parents': [{'id': folder_id}]
+    })
+    gfile.SetContentFile(local_file_path)
+    gfile.Upload()
+    print(f">> Upload Complete!\n")
+    return True
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
     drive = authenticate_drive()
     
-    # Put your actual Google Drive Folder ID here
-    TARGET_FOLDER_ID = "170RmO3RtiPrtwo6P3EvOORcw7w7kNAUa" 
-    
-    # 1. This dictates exactly where the file lands on your computer
-    local_destination = "./Remote_Files/level.dat"
-    
+  
     download_file_from_folder(
         drive=drive, 
         filename="level.dat", 
         folder_id=TARGET_FOLDER_ID,
         save_path=local_destination # <--- This is where it goes!
     )
+#     upload_or_replace_file(
+#         drive= drive,
+#         local_file_path=local_destination,
+#         folder_id=TARGET_FOLDER_ID,
+#         filename="level.dat"
+#     )
