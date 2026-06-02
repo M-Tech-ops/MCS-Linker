@@ -3,11 +3,12 @@
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive 
 import os
+from datetime import datetime
   # Put your actual Google Drive Folder ID here
 TARGET_FOLDER_ID = "170RmO3RtiPrtwo6P3EvOORcw7w7kNAUa" 
     
     # 1. This dictates exactly where the file lands on your computer
-local_destination = "./Remote_Files/level.dat"
+local_destination = "./Remote_Files"
     
 def authenticate_drive():
     print("Authenticating with Google Drive...")
@@ -78,6 +79,7 @@ def download_file_by_name(drive, filename, save_path):
     target_file.GetContentFile(save_path)
     print(">> Download Complete!\n")
     return True
+
 def upload_or_replace_file(drive, local_file_path, folder_id, filename=None):
     """
     Upload a local file to Google Drive folder, replacing if it exists
@@ -127,15 +129,16 @@ if __name__ == "__main__":
     drive = authenticate_drive()
     
   
-    download_file_from_folder(
-        drive=drive, 
-        filename="level.dat", 
-        folder_id=TARGET_FOLDER_ID,
-        save_path=local_destination # <--- This is where it goes!
-    )
+    # download_file_from_folder(
+    #     drive=drive, 
+    #     filename="level.dat", 
+    #     folder_id=TARGET_FOLDER_ID,
+    #     save_path=local_destination # <--- This is where it goes!
+    # )
 #     upload_or_replace_file(
 #         drive= drive,
 #         local_file_path=local_destination,
 #         folder_id=TARGET_FOLDER_ID,
 #         filename="level.dat"
 #     )
+# download_folder(drive=drive,local_path=local_destination,folder_id=TARGET_FOLDER_ID)
