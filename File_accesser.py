@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 import subprocess
 import gdrive_authenticator
-from datetime import datetime
+from datetime import datetime,timezone
 print("HELLo")
 def  Find_mine_world():
     roaming = (os.getenv("APPDATA"))
@@ -31,41 +31,93 @@ def download_folder(drive,local_path,folder_id):
     server_map = {item['title']: item for item in file_list}
     local_items = os.listdir(local_path)
 
-    all_items = server_map or local_items
+    all_items = set(list(server_map.keys()) + local_items)
     for file in all_items:
         local_file_path = os.path.join(local_path,file)
         server_item = server_map.get(file)
         
-        modified_time = file.get('modifiedDate')
-        gdrive_time = datetime.strptime(modified_time,"%Y-%m-%dT%H:%M:%S.%fZ")
-        local_time = datetime.strptime(local_file_path,"%Y-%m-%dT%H:%M:%S.%fZ")
+        exists_on_server = server_item is not None
+        exists_locally = os.path.exists(local_file_path)
+
+
+        if exists_on_server and exists_locally:
+            modified_time = server_item.get('modifiedDate')
+            gdrive_time = datetime.strptime(modified_time,"%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            local_timestamp = os.path.getmtime(local_file_path)
+            local_time = datetime.fromtimestamp(local_timestamp,tz=timezone.utc)
         #ADD FUNCTIONALITY HERE TO CHECK IF FILE IS THERE IN BOTH Server and local
         # Handle subfolders recursively
         
-        if file['mimetype'] == 'application/vnd.google-apps.folder' and isinstance(server_item,dict): #Donwlaod folder 
-            file_id = server_item['id']
+            if server_item and server_item['mimeType'] == 'application/vnd.google-apps.folder' and isinstance(server_item,dict): #Donwlaod folder 
+                file_id = server_item['id']
              # Store modified date in this 
            
-            if(gdrive_time>local_time):
+                # if(gdrive_time>local_time):
                 print(f"Entering folder: {file}")
                 download_folder(drive,local_file_path,file_id)
                 
-            else:
-                print(f"{file} is already updated in local") #To update - add a functionality to skip this iteration if the folder has a modified date more than local
+                # else:
+                #     print(f"{file} is already updated in local") #To update - add a functionality to skip this iteration if the folder has a modified date more than local
                 
         
         # Handle regular files
-        else:
-            if(gdrive_time>local_time):
-                print(f"Downloading file: {file}") #Download only if server is ahead
-                drive_file = drive.CreateFile({'id': file_id})
+            else:
+                if(gdrive_time>local_time):
+                    print(f"Downloading file: {file}") #Download only if server is ahead
+                    drive_file = drive.CreateFile({'id': file_id})
             
-                try:
-                    drive_file.GetContentFile(local_file_path)
-                except Exception as e:
-                    print(f"Failed to download {file}: {e}")
+                    try:
+                        drive_file.GetContentFile(local_file_path)
+
+                        gdrive_timestamp = gdrive_time.timestamp()
+                        os.utime(local_file_path,(gdrive_timestamp,gdrive_timestamp))
+                    except Exception as e:
+                        print(f"Failed to download {file}: {e}")
+                else:
+                    print(f"{file} Already updated \n")
+def upload_folder(drive,local_path,folder_id):
+    query = f"'{folder_id}' in parents and trashed=false"
+    file_list = drive.ListFile({'q': query}).GetList()
+    server_map = {item['title']: item for item in file_list}
+
+    if(not os.path.exists(local_path)):
+        print(f" {local_path}  does'nt exist locally")
+        return
+    local_items = os.listdir(local_path)
+    all_items = set(list(server_map.keys()) + local_items)
+
+    for file in all_items:
+        local_file_path = os.path.join(local_path,file)
+        server_item = server_map.get(file)
+
+        exists_on_server = server_item is not None
+        exists_locally = os.path.exists(local_file_path)
+
+        if exists_on_server and exists_locally:
+            # Parse Google Drive Time
+            modified_time = server_item.get('modifiedDate')
+            gdrive_time = datetime.strptime(modified_time, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+            
+            # Parse Local System Time
+            local_timestamp = os.path.getmtime(local_file_path)
+            local_time = datetime.fromtimestamp(local_timestamp, tz=timezone.utc)
 
 
+            if server_item and server_item['mimeType'] == 'application/vnd.google-apps.folder' and isinstance(server_item,dict): #Donwlaod folder 
+                file_id = server_item['id']
+             # Store modified date in this 
+           
+                # if(gdrive_time<local_time):
+                print(f"Entering folder: {file}")
+                upload_folder(drive,local_file_path,file_id)
+                # else:
+                #     print(f"{file} is already up-to-date")
+            else:
+                if(gdrive_time<local_time):
+                    print(f"Uploading file {file}")
+                    gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
+                else:
+                    print(f"File '{file}' is already updated on server.")
 worldname = "Samesoea"
 roaming = Find_mine_world()
 file = None
@@ -111,37 +163,46 @@ data1 = result.stdout
 #     print(f"Error downloading from google drive {e}")
 #     exit(1)
 
-server_path = os.path.join(script_dir,"Remote_Files","level.dat")
 
-gdrive_authenticator.download_file_by_name(gdrive_authenticator.authenticate_drive(),"level.dat",server_path)
+server_path = os.path.join(script_dir,"Remote_Files","level.dat")
+gdrive_authenticator.download_file_from_folder(gdrive_authenticator.authenticate_drive(),"level.dat",gdrive_authenticator.TARGET_FOLDER_ID,server_path)
+
 result = subprocess.run([exe_path , str(server_path)],capture_output=True,text=True,env=env)
 print(result.stdout)
 data2 = result.stdout
 result = subprocess.run([exe2_path,str(data1),str(data2)],capture_output=True,text=True,env=env)
-print(result.stdout)
 final_res = result.stdout
-
+# print(final_res)
 def main():
-    print("No replacement needed")
+   
+    name=name2=None
+    for line1 in data1:
+        name = data1.split(',')[0]
+    for lin2 in data2:
+        name2 = data2.split(',')[0]
+    if(name!=name2):
+        print("The world names are different")
+        print(f"Server :{name}\nLocal :{name2}")
+    else:
+        print("No replacement needed")
     return 0
 
-if(str(final_res).strip() == "0"):
+if(str(final_res).strip() == "-1"):
         if(__name__=="__main__"):
             main()
-elif(str(final_res).strip())=="1":
+elif(str(final_res).strip())=="0":
     print("\nReplacement needed")
     drive = gdrive_authenticator.authenticate_drive()
     about = drive.GetAbout()
     print(f"LOGGED IN AS {about['user']['emailAddress']}")
     print(f"CURRENTLY LOGGED IN AS: {about['user']['emailAddress']}")
-    gdrive_authenticator.upload_or_replace_file(
+    upload_folder(
         drive=gdrive_authenticator.authenticate_drive(),
-        filename="level.dat",
         folder_id=gdrive_authenticator.TARGET_FOLDER_ID,
-        local_file_path=path
+        local_path=path
     )
     exit()
-elif(str(final_res).strip())=="-1":
+elif(str(final_res).strip())=="0": #DOWNLOAD NEEDED
     print("\nReplacement needed in local")
 
     download_folder(

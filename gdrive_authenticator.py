@@ -3,7 +3,7 @@
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive 
 import os
-from datetime import datetime
+from datetime import datetime,timezone
   # Put your actual Google Drive Folder ID here
 TARGET_FOLDER_ID = "170RmO3RtiPrtwo6P3EvOORcw7w7kNAUa" 
     
@@ -106,7 +106,8 @@ def upload_or_replace_file(drive, local_file_path, folder_id, filename=None):
     # Check if file already exists on Drive
     query = f"title='{filename}' and '{folder_id}' in parents and trashed=false"
     file_list = drive.ListFile({'q': query}).GetList()
-    
+    local_timestamp = os.path.getmtime(local_file_path)
+    local_date_iso = datetime.fromtimestamp(local_timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
     if file_list:
         # File exists - delete old version
        if len(file_list) > 0:
@@ -123,6 +124,13 @@ def upload_or_replace_file(drive, local_file_path, folder_id, filename=None):
     gfile.SetContentFile(local_file_path)
     gfile.Upload()
     print(f">> Upload Complete!\n")
+    gfile['modifiedDate']=local_date_iso
+    try:
+        gfile.UpdateMetadata()
+        
+        print(f"Success in uploading correct time")
+    except Exception as e:
+        print(f"Failed to set correct timestamps {e}")
     return True
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
