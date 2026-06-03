@@ -202,7 +202,7 @@ elif(str(final_res).strip())=="0":
         local_path=path
     )
     exit()
-elif(str(final_res).strip())=="0": #DOWNLOAD NEEDED
+elif(str(final_res).strip())=="1": #DOWNLOAD NEEDED
     print("\nReplacement needed in local")
 
     download_folder(
