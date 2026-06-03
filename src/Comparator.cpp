@@ -43,15 +43,20 @@ int main(int argc, char* argv[]){
     File_Data Server(worldname2,ticks2,lastplayed2,dataversion2);
 
     if(!local.comparator(local.World_Name,Server.World_Name)){
-        std::cout<<"The world Names are different"; 
-        return -1;}
+        // std::cout<<"The world Names are different";
+        std::cout<<"-1";
+        return -1;} //NEED TO REPLACE
     else{
         if(local.comparator(local.ticks,Server.ticks)&&local.comparator(local.lastplayed,Server.lastplayed)&&local.comparator(local.Data_Version,Server.Data_Version)){
+           std::cout<<"-1"; //NO REPLACEMENT NEEDED
+        }
+        else if(local.ticks>Server.ticks){ //LOCAL WORLD IS AHEAD
             std::cout<<"1";
-            return 1;
+        }
+        else if(local.ticks<Server.ticks){ //Server World is ahead
+            std::cout<<"0";
         }
     }
-    std::cout<<"0";
     return 0;
     
 }
