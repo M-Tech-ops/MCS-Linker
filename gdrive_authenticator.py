@@ -4,9 +4,14 @@ from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive 
 import os
 from datetime import datetime,timezone
+import json
+with open("config.json",'r') as file:
+    config = json.load(file)
+
   # Put your actual Google Drive Folder ID here
-TARGET_FOLDER_ID = "170RmO3RtiPrtwo6P3EvOORcw7w7kNAUa" 
-    
+TARGET_FOLDER_ID = config['TARGET_FOLDER_ID']
+TARGET_FOLDER_ID = TARGET_FOLDER_ID.strip("https://drive.google.com/drive/u/0/folders/")
+
     # 1. This dictates exactly where the file lands on your computer
 local_destination = "./Remote_Files"
     
