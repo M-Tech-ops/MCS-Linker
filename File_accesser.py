@@ -145,7 +145,7 @@ print(f"Looking for executable at: {exe_path}")
 print(f"File exists: {os.path.exists(exe_path)}")
 
 
-
+#Needed for running main and comparator without issues 
 env = os.environ.copy()
 env['PATH'] = r"C:\msys64\ucrt64\bin;" + env['PATH']
 
