@@ -28,4 +28,5 @@ int main(int argc, char* argv[]) {
         NBTExplorer::ReadRawValue(CurrentFolder, "Time") << "," <<
         NBTExplorer::ReadRawValue(CurrentFolder, "LastPlayed") << "," <<
         NBTExplorer::ReadRawValue(CurrentFolder, "DataVersion")<< std::endl;
+        return 0;
 }

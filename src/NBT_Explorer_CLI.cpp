@@ -4,7 +4,7 @@
 
 #include "NBT_Explorer.hpp"
 
-int maina() {
+int main() {
     NBTExplorer explorer;
 
     std::cout << "Booting up NBT Explorer..." << std::endl;
