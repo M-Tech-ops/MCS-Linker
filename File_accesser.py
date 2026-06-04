@@ -6,6 +6,7 @@ import os
 import subprocess
 import gdrive_authenticator
 from datetime import datetime,timezone
+import sys
 print("HELLo")
 def  Find_mine_world():
     roaming = (os.getenv("APPDATA"))
@@ -63,6 +64,7 @@ def download_folder(drive,local_path,folder_id):
         # Handle regular files
             else:
                 if(gdrive_time>local_time):
+                    file_id = server_item['id']
                     print(f"Downloading file: {file}") #Download only if server is ahead
                     drive_file = drive.CreateFile({'id': file_id})
             
@@ -76,6 +78,7 @@ def download_folder(drive,local_path,folder_id):
                 else:
                     print(f"{file} Already updated \n")
 def upload_folder(drive,local_path,folder_id):
+
     query = f"'{folder_id}' in parents and trashed=false"
     file_list = drive.ListFile({'q': query}).GetList()
     server_map = {item['title']: item for item in file_list}
@@ -118,6 +121,9 @@ def upload_folder(drive,local_path,folder_id):
                     gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
                 else:
                     print(f"File '{file}' is already updated on server.")
+def get_absolute_Path(relative_path:str)->str:
+    base_path = getattr(sys,'_MEIPASS',os.path.abspath("."))
+    return os.path.join(base_path,relative_path)
 worldname = "Samesoea"
 roaming = Find_mine_world()
 file = None
@@ -133,8 +139,8 @@ if not path.exists():
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Build absolute path to executable
-exe_path = os.path.join(script_dir, "build", "main.exe")
-exe2_path = os.path.join(script_dir, "build", "Comparator.exe")
+exe_path = get_absolute_Path("build/main.exe")
+exe2_path = get_absolute_Path("build/Comparator.exe")
 print(f"Looking for executable at: {exe_path}")
 print(f"File exists: {os.path.exists(exe_path)}")
 
@@ -191,24 +197,28 @@ if(str(final_res).strip() == "-1"):
         if(__name__=="__main__"):
             main()
 elif(str(final_res).strip())=="0":
-    print("\nReplacement needed")
+    print("\nReplacement needed in local") #download
     drive = gdrive_authenticator.authenticate_drive()
     about = drive.GetAbout()
     print(f"LOGGED IN AS {about['user']['emailAddress']}")
     print(f"CURRENTLY LOGGED IN AS: {about['user']['emailAddress']}")
-    upload_folder(
-        drive=gdrive_authenticator.authenticate_drive(),
-        folder_id=gdrive_authenticator.TARGET_FOLDER_ID,
-        local_path=path
-    )
-    exit()
-elif(str(final_res).strip())=="1": #DOWNLOAD NEEDED
-    print("\nReplacement needed in local")
 
     download_folder(
         drive = gdrive_authenticator.authenticate_drive(),
         folder_id = gdrive_authenticator.TARGET_FOLDER_ID,
         local_path=  path
     )
-    exit()
+  
+    sys.exit()
+elif(str(final_res).strip())=="1": #Upload NEEDED
+    print("\nReplacement needed in server")
+
+    
+
+    upload_folder(
+        drive=gdrive_authenticator.authenticate_drive(),
+        folder_id=gdrive_authenticator.TARGET_FOLDER_ID,
+        local_path=path
+    )
+    sys.exit()
 #
