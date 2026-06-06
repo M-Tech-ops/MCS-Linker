@@ -14,6 +14,9 @@ TARGET_FOLDER_ID = TARGET_FOLDER_ID.strip("https://drive.google.com/drive/u/0/fo
 
     # 1. This dictates exactly where the file lands on your computer
 local_destination = "./Remote_Files"
+if(not os.path.exists(local_destination)):
+    os.makedirs(local_destination)
+
     
 def authenticate_drive():
     print("Authenticating with Google Drive...")
@@ -118,25 +121,33 @@ def upload_or_replace_file(drive, local_file_path, folder_id, filename=None):
        if len(file_list) > 0:
         print(f"Found {len(file_list)} existing file(s). Deleting...")
         for f in file_list:
-            f.Delete()
+            f.Trash()
             print(f"  Deleted: {f['id']}")
     # Upload new file
     print(f"Uploading new '{filename}' to Drive...")
-    gfile = drive.CreateFile({
-        'title': filename,
-        'parents': [{'id': folder_id}]
+    if(os.path.isdir(local_file_path)):
+        gfile = drive.CreateFile({
+            'title': filename,
+            'parents': [{'id': folder_id}],
+            'mimeType' : 'application/vnd.google-apps.folder'
     })
-    gfile.SetContentFile(local_file_path)
+    else:
+        gfile = drive.CreateFile({
+            'title': filename,
+            'parents': [{'id': folder_id}],
+            'modifiedDate': local_date_iso
+    })
+        gfile.SetContentFile(local_file_path)
+    
     gfile.Upload()
     print(f">> Upload Complete!\n")
-    gfile['modifiedDate']=local_date_iso
-    try:
-        gfile.UpdateMetadata()
+    # try:
+    #     gfile.UpdateMetadata()
         
-        print(f"Success in uploading correct time")
-    except Exception as e:
-        print(f"Failed to set correct timestamps {e}")
-    return True
+    #     print(f"Success in uploading correct time")
+    # except Exception as e:
+    #     print(f"Failed to set correct timestamps {e}")
+    return gfile['id']
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
     drive = authenticate_drive()
