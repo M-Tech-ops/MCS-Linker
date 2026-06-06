@@ -6,8 +6,10 @@ import os
 import subprocess
 import gdrive_authenticator
 from datetime import datetime,timezone
+import json
 import sys
-print("HELLo")
+with open("config.json",'r') as file:
+    config = json.load(file)
 def  Find_mine_world():
     roaming = (os.getenv("APPDATA"))
     if(roaming is None):
@@ -35,25 +37,24 @@ def download_folder(drive,local_path,folder_id):
     all_items = set(list(server_map.keys()) + local_items)
     for file in all_items:
         local_file_path = os.path.join(local_path,file)
+        
         server_item = server_map.get(file)
         
         exists_on_server = server_item is not None
         exists_locally = os.path.exists(local_file_path)
 
-
         if exists_on_server and exists_locally:
             modified_time = server_item.get('modifiedDate')
             gdrive_time = datetime.strptime(modified_time,"%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-            local_timestamp = os.path.getmtime(local_file_path)
-            local_time = datetime.fromtimestamp(local_timestamp,tz=timezone.utc)
+            
+       
         #ADD FUNCTIONALITY HERE TO CHECK IF FILE IS THERE IN BOTH Server and local
         # Handle subfolders recursively
         
             if server_item and server_item['mimeType'] == 'application/vnd.google-apps.folder' and isinstance(server_item,dict): #Donwlaod folder 
                 file_id = server_item['id']
              # Store modified date in this 
-           
-                # if(gdrive_time>local_time):
+                # if(gdrive_time>local_time): #its not a good practice since folder modification date is not changed from any change in a file within it
                 print(f"Entering folder: {file}")
                 download_folder(drive,local_file_path,file_id)
                 
@@ -63,8 +64,11 @@ def download_folder(drive,local_path,folder_id):
         
         # Handle regular files
             else:
+                local_timestamp = os.path.getmtime(local_file_path)
+                local_time = datetime.fromtimestamp(local_timestamp,tz=timezone.utc)
+                file_id = server_item['id']
                 if(gdrive_time>local_time):
-                    file_id = server_item['id']
+                    
                     print(f"Downloading file: {file}") #Download only if server is ahead
                     drive_file = drive.CreateFile({'id': file_id})
             
@@ -77,6 +81,32 @@ def download_folder(drive,local_path,folder_id):
                         print(f"Failed to download {file}: {e}")
                 else:
                     print(f"{file} Already updated \n")
+        elif not exists_locally:
+            
+           
+            print("File doesn't exist locally")
+            
+            if server_item is not None:
+                modified_time = server_item.get('modifiedDate')
+                gdrive_time = datetime.strptime(modified_time, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+                file_id = server_item['id']
+                if server_item['mimeType'] == 'application/vnd.google-apps.folder':
+                    print("Folder does not exist!\n")
+                    print("Creating Now....")
+                    os.makedirs(local_file_path)
+                    print(f"{file}Created Successfully")
+                    download_folder(drive,local_file_path,file_id)
+                else:
+                    
+                    print(f"Downloading file: {file}")
+                    drive_file = drive.CreateFile({'id': file_id})
+                    try:
+                        drive_file.GetContentFile(local_file_path)
+
+                        gdrive_timestamp = gdrive_time.timestamp()
+                        os.utime(local_file_path,(gdrive_timestamp,gdrive_timestamp))
+                    except Exception as e:
+                        print(f"Failed to download {file}: {e}")
 def upload_folder(drive,local_path,folder_id):
 
     query = f"'{folder_id}' in parents and trashed=false"
@@ -104,7 +134,8 @@ def upload_folder(drive,local_path,folder_id):
             # Parse Local System Time
             local_timestamp = os.path.getmtime(local_file_path)
             local_time = datetime.fromtimestamp(local_timestamp, tz=timezone.utc)
-
+            gdrive_time = gdrive_time.replace(microsecond=0)
+            local_time = local_time.replace(microsecond=0)
 
             if server_item and server_item['mimeType'] == 'application/vnd.google-apps.folder' and isinstance(server_item,dict): #Donwlaod folder 
                 file_id = server_item['id']
@@ -118,22 +149,41 @@ def upload_folder(drive,local_path,folder_id):
             else:
                 if(gdrive_time<local_time):
                     print(f"Uploading file {file}")
+                    print("DEBUG ")
+                    print(local_time)
+                    print(gdrive_time)
                     gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
                 else:
                     print(f"File '{file}' is already updated on server.")
+        elif exists_on_server==False and exists_locally==True:
+             # Store modified date in this 
+             if(os.path.isdir(local_file_path)):
+                # if(gdrive_time<local_time):
+                print(f"Entering folder: {file}")
+                new_id = gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id)
+                upload_folder(drive,local_file_path,new_id)
+             else:
+                        print(f"Uploading file {file}")
+                        gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
 def get_absolute_Path(relative_path:str)->str:
     base_path = getattr(sys,'_MEIPASS',os.path.abspath("."))
     return os.path.join(base_path,relative_path)
-worldname = "Samesoea"
+worldname = config["WORLD_NAME"]
 roaming = Find_mine_world()
 file = None
 if(roaming is None):
     print("Cannot find minecraft folder")
-    exit(1)
+    sys.exit()
 path = roaming / ".minecraft" / "saves" / worldname 
-if not path.exists():
-    print(f"Error: {path} not found")
-    exit(1)
+if not path.exists():                       #Create the world folder if world doesnt already exist 
+    os.makedirs(path)
+    print("World does'nt exist locally creating...")
+    download_folder(
+        drive = gdrive_authenticator.authenticate_drive(),
+        folder_id = gdrive_authenticator.TARGET_FOLDER_ID,
+        local_path= path
+    )
+
 
 # Get the directory where your Python script is located
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -193,7 +243,7 @@ def main():
         print("No replacement needed")
     return 0
 
-if(str(final_res).strip() == "-1"):
+if(str(final_res).strip() == "1"):
         if(__name__=="__main__"):
             main()
 elif(str(final_res).strip())=="0":
@@ -210,7 +260,7 @@ elif(str(final_res).strip())=="0":
     )
   
     sys.exit()
-elif(str(final_res).strip())=="1": #Upload NEEDED
+elif(str(final_res).strip())=="-1": #Upload NEEDED
     print("\nReplacement needed in server")
 
     
