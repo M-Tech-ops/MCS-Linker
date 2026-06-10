@@ -8,6 +8,7 @@ import gdrive_authenticator
 from datetime import datetime,timezone
 import json
 import sys
+import gdrive_authenticator_threads as th
 with open("config.json",'r') as file:
     config = json.load(file)
 def  Find_mine_world():
@@ -57,7 +58,6 @@ def download_folder(drive,local_path,folder_id):
                 # if(gdrive_time>local_time): #its not a good practice since folder modification date is not changed from any change in a file within it
                 print(f"Entering folder: {file}")
                 download_folder(drive,local_file_path,file_id)
-                
                 # else:
                 #     print(f"{file} is already updated in local") #To update - add a functionality to skip this iteration if the folder has a modified date more than local
                 
@@ -165,6 +165,15 @@ def upload_folder(drive,local_path,folder_id):
              else:
                         print(f"Uploading file {file}")
                         gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
+ #________________TO TEST_________*
+        elif exists_on_server == True and exists_locally == False:
+            if(server_item and server_item['mimeType']=='application/vnd.google-apps.folder'):
+                file_id = server_item['id']
+                print("Entering Folder {file}")
+                upload_folder(drive,local_file_path,file_id)
+#To accomplish this we will use threads to successfully get the process to happen faster
+            else:
+                gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,filename=file) 
 def get_absolute_Path(relative_path:str)->str:
     base_path = getattr(sys,'_MEIPASS',os.path.abspath("."))
     return os.path.join(base_path,relative_path)
@@ -243,7 +252,7 @@ def main():
         print("No replacement needed")
     return 0
 
-if(str(final_res).strip() == "1"):
+if(str(final_res).strip() == "-1"):
         if(__name__=="__main__"):
             main()
 elif(str(final_res).strip())=="0":
@@ -260,15 +269,13 @@ elif(str(final_res).strip())=="0":
     )
   
     sys.exit()
-elif(str(final_res).strip())=="-1": #Upload NEEDED
+elif(str(final_res).strip())=="1": #Upload NEEDED
     print("\nReplacement needed in server")
 
     
-
-    upload_folder(
-        drive=gdrive_authenticator.authenticate_drive(),
-        folder_id=gdrive_authenticator.TARGET_FOLDER_ID,
-        local_path=path
+    th.upload_parllel(
+        root_gdrive_id=gdrive_authenticator.TARGET_FOLDER_ID,
+        local_folder_path=str(path)
     )
     sys.exit()
 #
