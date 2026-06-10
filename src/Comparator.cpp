@@ -77,7 +77,6 @@ std::tuple<std::string,long long,long long,int>string_processor(const std::strin
 }
 return {"NOT FOUND",0,0,0};
 }
-// Work for tommorow - Make 2 classes for server and local files and then compare there variables
 bool compare_string(std::string s1 , std::string s2){
     return s1==s2;
 }
