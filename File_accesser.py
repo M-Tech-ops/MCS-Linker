@@ -8,7 +8,11 @@ import gdrive_authenticator
 from datetime import datetime,timezone
 import json
 import sys
-import gdrive_authenticator_threads as th
+from concurrent.futures import ThreadPoolExecutor
+import threading
+from tqdm import tqdm
+import sys
+from contextlib import redirect_stdout
 with open("config.json",'r') as file:
     config = json.load(file)
 def  Find_mine_world():
@@ -108,13 +112,12 @@ def download_folder(drive,local_path,folder_id):
                     except Exception as e:
                         print(f"Failed to download {file}: {e}")
 def upload_folder(drive,local_path,folder_id):
-
     query = f"'{folder_id}' in parents and trashed=false"
     file_list = drive.ListFile({'q': query}).GetList()
     server_map = {item['title']: item for item in file_list}
 
     if(not os.path.exists(local_path)):
-        print(f" {local_path}  does'nt exist locally")
+        tqdm.write(f" {local_path}  does'nt exist locally")
         return
     local_items = os.listdir(local_path)
     all_items = set(list(server_map.keys()) + local_items)
@@ -142,41 +145,102 @@ def upload_folder(drive,local_path,folder_id):
              # Store modified date in this 
            
                 # if(gdrive_time<local_time):
-                print(f"Entering folder: {file}")
+                tqdm.write(f"Entering folder: {file}")
                 upload_folder(drive,local_file_path,file_id)
                 # else:
                 #     print(f"{file} is already up-to-date")
             else:
                 if(gdrive_time<local_time):
-                    print(f"Uploading file {file}")
-                    print("DEBUG ")
-                    print(local_time)
-                    print(gdrive_time)
+                    tqdm.write(f"Uploading file {file}")
                     gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
                 else:
-                    print(f"File '{file}' is already updated on server.")
+                    tqdm.write(f"File '{file}' is already updated on server.")
         elif exists_on_server==False and exists_locally==True:
              # Store modified date in this 
              if(os.path.isdir(local_file_path)):
                 # if(gdrive_time<local_time):
-                print(f"Entering folder: {file}")
+                tqdm.write(f"Entering folder: {file}")
                 new_id = gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id)
                 upload_folder(drive,local_file_path,new_id)
              else:
-                        print(f"Uploading file {file}")
+                        tqdm.write(f"Uploading file {file}")
                         gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,file)
  #________________TO TEST_________*
         elif exists_on_server == True and exists_locally == False:
             if(server_item and server_item['mimeType']=='application/vnd.google-apps.folder'):
                 file_id = server_item['id']
-                print("Entering Folder {file}")
+                tqdm.write(f"Entering Folder {file}")
                 upload_folder(drive,local_file_path,file_id)
 #To accomplish this we will use threads to successfully get the process to happen faster
             else:
                 gdrive_authenticator.upload_or_replace_file(drive,local_file_path,folder_id,filename=file) 
 def get_absolute_Path(relative_path:str)->str:
+    
     base_path = getattr(sys,'_MEIPASS',os.path.abspath("."))
     return os.path.join(base_path,relative_path)
+
+auth_lock = threading.Lock()
+def workers_upload_tasks(drive_service,local_file_path,folder_id):
+    try:
+       tqdm.write(f"[+] Thread scanning directory content: {os.path.basename(local_file_path)}\n")
+       upload_folder(drive_service, local_file_path, folder_id)
+    except Exception as e:
+        tqdm.write(f"[!] Thread error occured while processing:{local_file_path} {e}")
+
+def upload_parallel(local_folder_path, root_gdrive_id, max_workers=5):
+    # Force path to string to prevent any object/string type mismatches
+    local_folder_path = str(local_folder_path)
+    
+    # Using a set to ensure we only process each unique folder once
+    unique_folders = set()
+    folder_tasks = []
+
+    tqdm.write("Mapping structures...")
+    main_drive = gdrive_authenticator.authenticate_drive()
+    folder_dictionary = {local_folder_path : root_gdrive_id}
+
+    for root, dirs, files in os.walk(local_folder_path):
+        current_gdrive_id = folder_dictionary.get(root, root_gdrive_id)
+
+        # Build folder structure synchronously first
+        for d in dirs:
+            local_dir_path = os.path.join(root, d)
+            tqdm.write(f"Verifying folder structure: {d}")
+            gdir_id = gdrive_authenticator.upload_or_replace_file(main_drive, local_dir_path, current_gdrive_id)
+            folder_dictionary[local_dir_path] = gdir_id
+
+        # If this directory has files, add it to our threaded task queue
+        if files and root not in unique_folders:
+            unique_folders.add(root)
+            # Pass the parent folder path and its matching Google Drive ID
+            folder_tasks.append((main_drive, root, current_gdrive_id))
+    
+    tqdm.write(f"\n[+] Starting multithreaded upload with {max_workers} workers")
+    tqdm.write(f"[+] Total folders to process in parallel: {len(folder_tasks)}\n")
+
+
+    with tqdm(total=len(folder_tasks), desc="Syncing World Folders", unit="folder",file=sys.stderr) as pbar:
+        
+       
+        with open(os.devnull, 'w') as fnull:
+        # Everything inside this block that uses standard 'print()' will vanish!
+            with redirect_stdout(fnull):
+                
+                def worker_with_progress(task):
+                    drive, path, g_id = task
+                    try:
+                        workers_upload_tasks(drive, path, g_id)
+                    finally:
+                        # Even though stdout is muted, pbar writes to stderr, so it still updates!
+                        pbar.update(1)
+    # Pass the tasks into the thread pool
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Unpacks (drive, root_path, gdrive_id) safely
+        list(executor.map(worker_with_progress, folder_tasks))
+        # list(executor.map(lambda task: workers_upload_tasks(task[0], task[1], task[2]), folder_tasks))
+
+    tqdm.write(">> All parallel tasks completed successfully\n")
+    return
 worldname = config["WORLD_NAME"]
 roaming = Find_mine_world()
 file = None
@@ -192,6 +256,9 @@ if not path.exists():                       #Create the world folder if world do
         folder_id = gdrive_authenticator.TARGET_FOLDER_ID,
         local_path= path
     )
+
+
+
 
 
 # Get the directory where your Python script is located
@@ -252,7 +319,7 @@ def main():
         print("No replacement needed")
     return 0
 
-if(str(final_res).strip() == "-1"):
+if(str(final_res).strip() == "1"):
         if(__name__=="__main__"):
             main()
 elif(str(final_res).strip())=="0":
@@ -269,13 +336,13 @@ elif(str(final_res).strip())=="0":
     )
   
     sys.exit()
-elif(str(final_res).strip())=="1": #Upload NEEDED
+elif(str(final_res).strip())=="-1": #Upload NEEDED
     print("\nReplacement needed in server")
 
     
-    th.upload_parllel(
+    upload_parallel(
         root_gdrive_id=gdrive_authenticator.TARGET_FOLDER_ID,
-        local_folder_path=str(path)
+        local_folder_path=path
     )
     sys.exit()
 #
