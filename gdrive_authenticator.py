@@ -5,6 +5,7 @@ from pydrive2.drive import GoogleDrive
 import os
 from datetime import datetime,timezone
 import json
+import threading
 with open("config.json",'r') as file:
     config = json.load(file)
 
@@ -17,10 +18,11 @@ local_destination = "./Remote_Files"
 if(not os.path.exists(local_destination)):
     os.makedirs(local_destination)
 
-    
+
 def authenticate_drive():
     print("Authenticating with Google Drive...")
-    gauth = GoogleAuth()
+    gauth =  GoogleAuth()
+    # gauth.DEFAULT_SETTINGS['oauth_scope'] = ['https://googleapis.com']
     gauth.LoadCredentialsFile("mycreds.txt")
     # This will open a web browser the first time to ask for your permission.
     # It creates a 'credentials.json' file so you don't have to log in every time.
@@ -28,6 +30,7 @@ def authenticate_drive():
         # If no saved credentials exist, log in via browser
         print("No saved credentials found. Opening browser...")
         gauth.GetFlow()
+        gauth.flow.scope = 'https://www.googleapis.com/auth/drive'
         gauth.flow.params.update({'access_type': 'offline'})
         gauth.flow.params.update({'approval_prompt':'force'})
         gauth.LocalWebserverAuth()
@@ -44,6 +47,15 @@ def authenticate_drive():
     
     return GoogleDrive(gauth)
 def download_file_from_folder(drive, filename, folder_id, save_path):
+    '''
+    Use folder id and filename from parent folder to download a file
+    
+    Args:
+        drive: Pass the authenticated drive object
+        filename: The name of file to download inside the folder
+        folder_id:The id of the folder in which the file exists
+        save_path:The path to save your file to 
+    '''
     print(f"Searching for '{filename}' inside specific folder...")
     
     # THE UPGRADE: We added "'folder_id' in parents" to the SQL-like query
@@ -116,37 +128,39 @@ def upload_or_replace_file(drive, local_file_path, folder_id, filename=None):
     file_list = drive.ListFile({'q': query}).GetList()
     local_timestamp = os.path.getmtime(local_file_path)
     local_date_iso = datetime.fromtimestamp(local_timestamp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + 'Z'
-    if file_list:
-        # File exists - delete old version
-       if len(file_list) > 0:
-        print(f"Found {len(file_list)} existing file(s). Deleting...")
-        for f in file_list:
-            f.Trash()
-            print(f"  Deleted: {f['id']}")
-    # Upload new file
-    print(f"Uploading new '{filename}' to Drive...")
-    if(os.path.isdir(local_file_path)):
+    if file_list and len(file_list)>0:
+        existing_file = file_list[0]
+        print(f"Found existing file ID {(file_list[0])['id']}")
+        print(f"Uploading new '{filename}' to Drive...")
         gfile = drive.CreateFile({
-            'title': filename,
-            'parents': [{'id': folder_id}],
-            'mimeType' : 'application/vnd.google-apps.folder'
-    })
+            'id': existing_file['id'], 
+            'supportsAllDrives': True,
+            'modifiedDate' : local_date_iso
+        })
+        if(os.path.isdir(local_file_path)):
+            print("existing folder\n")
+            return gfile['id']
+        else:
+            gfile.SetContentFile(local_file_path)
+            gfile.Upload(param={'supportsAllDrives': True})
     else:
-        gfile = drive.CreateFile({
-            'title': filename,
+        print(f"No existing file found. Uploading new '{filename}' to Drive...")
+        if(os.path.isdir(local_file_path)):
+            gfile = drive.CreateFile({
+            'title' : filename,
             'parents': [{'id': folder_id}],
-            'modifiedDate': local_date_iso
-    })
-        gfile.SetContentFile(local_file_path)
-    
-    gfile.Upload()
-    print(f">> Upload Complete!\n")
-    # try:
-    #     gfile.UpdateMetadata()
-        
-    #     print(f"Success in uploading correct time")
-    # except Exception as e:
-    #     print(f"Failed to set correct timestamps {e}")
+            'mimeType': 'application/vnd.google-apps.folder',
+            'modifiedDate' : local_date_iso
+        })
+            gfile.Upload(param={'supportsAllDrives': True})
+        else:
+            gfile = drive.CreateFile({
+                'title': filename,
+                'parents': [{'id': folder_id}]
+            })
+            gfile.SetContentFile(local_file_path)
+            gfile.Upload(param={'supportsAllDrives': True})
+            print(f">> Upload Complete!\n")
     return gfile['id']
 # --- MAIN EXECUTION ---
 if __name__ == "__main__":
