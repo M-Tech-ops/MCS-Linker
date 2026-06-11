@@ -1,3 +1,0 @@
-C:/Mc_autoset/FRESH/mcp/build/CMakeFiles/main.dir
-C:/Mc_autoset/FRESH/mcp/build/CMakeFiles/edit_cache.dir
-C:/Mc_autoset/FRESH/mcp/build/CMakeFiles/rebuild_cache.dir

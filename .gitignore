@@ -2,3 +2,4 @@ mycreds.txt
 config.json
 *.env
 CMakeLists.txt
+build/
