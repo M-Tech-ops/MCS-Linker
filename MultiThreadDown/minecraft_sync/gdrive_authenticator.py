@@ -6,6 +6,7 @@ import os
 from datetime import datetime,timezone
 import json
 import threading
+auth_lock = threading.Lock()
 with open("config.json",'r') as file:
     config = json.load(file)
 
