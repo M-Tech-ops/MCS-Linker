@@ -3,7 +3,7 @@ from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 import os
 from concurrent.futures import ThreadPoolExecutor
-from gdrive_authenticator import upload_or_replace_file
+from minecraft_sync.gdrive_authenticator import upload_or_replace_file
 auth_lock = threading.Lock()
 
 def authenticate_drive():

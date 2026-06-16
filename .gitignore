@@ -3,3 +3,9 @@ config.json
 *.env
 CMakeLists.txt
 build/
+__pycache__/
+dist/
+Remote_Files/
+.sync_hash_cache.json
+client_secrets.json
+file_accesser.spec
