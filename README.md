@@ -49,6 +49,8 @@ Come then lets set it up for good
 5. Click the download icon
 
 Send the `credentials.json` file to all your friends via email/Discord/etc.
+and then ask them to put it inside the same folder they put the File_accesser.py and then run it
+Then login with the account you have been given access to and follow the next steps
 
 #### Step 4: Upload World to Drive
 
