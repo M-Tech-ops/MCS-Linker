@@ -5,10 +5,14 @@ from tqdm import tqdm
 
 import hash_cache as hash_cache_module
 
+# Skip these files when syncing the world.
+IGNORED_FILES = {
+    "session.lock", # Usually loaded by minecraft, and can't be read / written.
+}
+
 # Skip files modified within this window — they're likely mid-write during
 # Minecraft's autosave. The next 4-5 minute cycle will pick them up once settled.
 SKIP_IF_MODIFIED_WITHIN_SECONDS = 3
-
 
 def build_changeset(
     local_root:    str,
@@ -66,6 +70,9 @@ def _walk(
     all_items = local_items | set(server_map.keys())
 
     for name in all_items:
+        if name in IGNORED_FILES:
+            continue
+
         local_file  = os.path.join(local_path, name)
         server_item = server_map.get(name)
 
