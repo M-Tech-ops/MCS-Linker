@@ -23,6 +23,8 @@ import gdrive_authenticator as gdrive_authenticator
 import orchestrator
 from tqdm import tqdm
 
+sys.stdout.reconfigure(line_buffering=True)
+
 socket.setdefaulttimeout(45)
 # ── Config ────────────────────────────────────────────────────────────────────
 if hasattr(sys.stdout, 'reconfigure'):
