@@ -62,9 +62,10 @@ Send the `credentials.json` file to all your friends via email/Discord/etc.
 1. Download and extract it inside a single folder
 2. Edit the config.json file and put your drive link and worldname inside it in double commas ""
 3. Click the script and your world will be synced to the one in the drive
-4. Then download the Mods.zip from [WorldSync by ChillestOrange](https://github.com/ChillestOrange/worldsync) and extract it
-5. Put the extracted jar files into ` %appdata%/ .minecraft / mods `
-6. Put the config file into the `%appdata% / .minecraft / config ` and add the appropriate paths into it.
+4. Then download the Mod *worldsync latest release* from [WorldSync by ChillestOrange](https://github.com/ChillestOrange/worldsync).
+5. Put the extracted jar files into ` %appdata% / .minecraft / mods `
+6. Run minecraft for the config file to get created.
+7. Go to  `%appdata% / .minecraft / config / worldsync.json5 ` and add the appropriate paths into it.
 > ***In the config file remember to give the directory where your File_accesser.exe is located not the full path!***
 
 ### Step 6:
